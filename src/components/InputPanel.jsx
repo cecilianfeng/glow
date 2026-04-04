@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
 import { fetchYouTubeData, fetchUrlContent, extractImagesFromHtmlFile } from '../lib/api';
-import { extractFromPdf } from '../lib/pdfExtract';
 
 const TABS = [
   { id: 'youtube', label: 'YouTube', icon: '▶' },
@@ -29,6 +28,8 @@ export default function InputPanel({ onInputReady, isGenerating }) {
     setFetchError('');
     try {
       if (isPdf) {
+        // Lazy import — pdfjs-dist is heavy and must NOT be loaded at module init time
+        const { extractFromPdf } = await import('../lib/pdfExtract');
         const data = await extractFromPdf(file);
         setFileData({ ...data, name: file.name });
       } else if (isHtml) {
