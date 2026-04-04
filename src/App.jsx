@@ -6,6 +6,7 @@ import LinkedInPost from './components/LinkedInPost';
 import TakeawayCards from './components/TakeawayCard';
 import CoverImage from './components/CoverImage';
 import CarouselSlides from './components/CarouselSlides';
+import ImageManager from './components/ImageManager';
 
 const OUTPUT_TABS = [
   { id: 'post', label: '📝 LinkedIn Post' },
@@ -16,7 +17,7 @@ const OUTPUT_TABS = [
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-8">
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-8 py-12">
       <div className="relative mb-6">
         <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#a855f7]/20 to-[#c084fc]/20 border border-[#c084fc]/20 flex items-center justify-center text-4xl">
           ✨
@@ -25,8 +26,21 @@ function EmptyState() {
       </div>
       <h3 className="text-lg font-semibold text-white mb-2">Your content assets will appear here</h3>
       <p className="text-sm text-[#6b7280] max-w-sm leading-relaxed">
-        Paste a YouTube link, URL, or text on the left — Glow will generate a LinkedIn post, visual cards, and a full carousel.
+        Paste a YouTube link, URL, or text on the left. Glow extracts images from your source and generates a LinkedIn post, visual cards, and a hybrid image+text carousel.
       </p>
+      <div className="mt-6 grid grid-cols-2 gap-3 text-xs text-[#4b5563] w-full max-w-xs">
+        {[
+          ['📝', 'LinkedIn post copy'],
+          ['💡', 'Takeaway cards'],
+          ['🖼️', 'Cover image'],
+          ['📑', 'Image+text carousel'],
+        ].map(([icon, label]) => (
+          <div key={label} className="flex items-center gap-2 bg-[#12121c] rounded-xl px-3 py-2 border border-[#1e1e2e]">
+            <span>{icon}</span>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -36,11 +50,11 @@ function GeneratingState() {
     { label: 'Reading your content', done: true },
     { label: 'Extracting key insights', done: true },
     { label: 'Crafting LinkedIn copy', done: false },
-    { label: 'Designing carousel structure', done: false },
+    { label: 'Designing carousel slides', done: false },
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-8">
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-8 py-12">
       <div className="relative mb-8">
         <div className="w-16 h-16 rounded-full border-2 border-[#c084fc]/30 border-t-[#c084fc] animate-spin" />
         <div className="absolute inset-0 flex items-center justify-center text-2xl">✨</div>
@@ -53,7 +67,7 @@ function GeneratingState() {
             <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
               step.done ? 'bg-[#c084fc]' : 'border border-[#c084fc]/30 animate-pulse'
             }`}>
-              {step.done ? <span className="text-white text-xs">✓</span> : null}
+              {step.done && <span className="text-white text-xs">✓</span>}
             </div>
             <span className={step.done ? 'text-[#9ca3af]' : 'text-[#6b7280]'}>{step.label}</span>
           </div>
@@ -68,6 +82,10 @@ export default function App() {
     brand, updateBrand,
     inputData, setInputData,
     output, setOutput,
+    getMergedSlides,
+    reassignSlideImage,
+    removeExtractedImage,
+    addExtractedImage,
     isGenerating, setIsGenerating,
     error, setError,
     activeTab, setActiveTab,
@@ -89,6 +107,9 @@ export default function App() {
       setIsGenerating(false);
     }
   };
+
+  const images = inputData?.images || [];
+  const mergedSlides = getMergedSlides();
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
@@ -118,17 +139,25 @@ export default function App() {
       {/* Main Layout */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr_280px] gap-6 items-start">
-          {/* Left: Input + Error */}
+
+          {/* Left: Input + Image Manager */}
           <div className="space-y-4">
             <InputPanel onInputReady={handleInputReady} isGenerating={isGenerating} />
+
+            {/* Image Manager — shown after generation if images were extracted */}
+            {output && images.length > 0 && (
+              <ImageManager
+                images={images}
+                onRemove={removeExtractedImage}
+                onAdd={addExtractedImage}
+              />
+            )}
+
             {error && (
               <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
                 <p className="text-sm text-red-400 font-medium mb-1">Generation failed</p>
                 <p className="text-xs text-red-400/80">{error}</p>
-                <button
-                  onClick={() => setError(null)}
-                  className="mt-2 text-xs text-red-400 hover:underline cursor-pointer"
-                >
+                <button onClick={() => setError(null)} className="mt-2 text-xs text-red-400 hover:underline cursor-pointer">
                   Dismiss
                 </button>
               </div>
@@ -156,6 +185,12 @@ export default function App() {
                       }`}
                     >
                       {tab.label}
+                      {/* Image badge on carousel tab */}
+                      {tab.id === 'carousel' && images.length > 0 && (
+                        <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#c084fc22] text-[#c084fc] text-[9px] font-bold">
+                          {images.length}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -177,11 +212,16 @@ export default function App() {
                       title={output?.sourceTitle || inputData?.title || 'Key Insights'}
                       subtitle={output?.summary}
                       brand={brand}
-                      thumbnail={inputData?.thumbnail}
+                      thumbnail={inputData?.thumbnail || images[0]?.url}
                     />
                   )}
                   {activeTab === 'carousel' && (
-                    <CarouselSlides slides={output?.carousel} brand={brand} />
+                    <CarouselSlides
+                      slides={mergedSlides}
+                      brand={brand}
+                      images={images}
+                      onReassignImage={reassignSlideImage}
+                    />
                   )}
                 </div>
               </div>

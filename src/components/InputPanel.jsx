@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { fetchYouTubeData, fetchUrlContent } from '../lib/api';
+import { fetchYouTubeData, fetchUrlContent, extractImagesFromHtmlFile } from '../lib/api';
+import { extractFromPdf } from '../lib/pdfExtract';
 
 const TABS = [
   { id: 'youtube', label: 'YouTube', icon: '▶' },
@@ -14,29 +15,44 @@ export default function InputPanel({ onInputReady, isGenerating }) {
   const [articleUrl, setArticleUrl] = useState('');
   const [rawText, setRawText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [fileContent, setFileContent] = useState(null);
-  const [fileName, setFileName] = useState('');
+  const [fileData, setFileData] = useState(null); // { name, type, text, images }
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const fileInputRef = useRef(null);
 
-  const handleFile = useCallback((file) => {
+  const processFile = useCallback(async (file) => {
     if (!file) return;
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
-      setFileContent(text);
-    };
-    reader.readAsText(file);
+    const isPdf = file.name.endsWith('.pdf') || file.type === 'application/pdf';
+    const isHtml = file.name.endsWith('.html') || file.name.endsWith('.htm') || file.type === 'text/html';
+
+    setIsLoading(true);
+    setFetchError('');
+    try {
+      if (isPdf) {
+        const data = await extractFromPdf(file);
+        setFileData({ ...data, name: file.name });
+      } else if (isHtml) {
+        const text = await file.text();
+        const data = extractImagesFromHtmlFile(text, file.name);
+        setFileData({ ...data, name: file.name });
+      } else {
+        // Plain text / markdown
+        const text = await file.text();
+        setFileData({ name: file.name, type: 'file', text, images: [], title: file.name });
+      }
+    } catch (err) {
+      setFetchError(`File processing failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  }, [handleFile]);
+    if (file) processFile(file);
+  }, [processFile]);
 
   const handleGenerate = async () => {
     setFetchError('');
@@ -53,10 +69,10 @@ export default function InputPanel({ onInputReady, isGenerating }) {
         inputData = await fetchUrlContent(articleUrl.trim());
       } else if (activeTab === 'text') {
         if (!rawText.trim()) throw new Error('Please paste some content.');
-        inputData = { type: 'text', text: rawText.trim(), title: 'Pasted Content' };
+        inputData = { type: 'text', text: rawText.trim(), title: 'Pasted Content', images: [] };
       } else if (activeTab === 'file') {
-        if (!fileContent) throw new Error('Please upload a file.');
-        inputData = { type: 'file', text: fileContent, title: fileName };
+        if (!fileData) throw new Error('Please upload a file.');
+        inputData = fileData;
       }
 
       onInputReady(inputData);
@@ -66,6 +82,8 @@ export default function InputPanel({ onInputReady, isGenerating }) {
       setIsLoading(false);
     }
   };
+
+  const imageCount = fileData?.images?.length ?? 0;
 
   return (
     <div className="rounded-2xl border border-[#1e1e2e] bg-[#0e0e18] p-6 shadow-xl">
@@ -98,9 +116,11 @@ export default function InputPanel({ onInputReady, isGenerating }) {
             type="url"
             value={youtubeUrl}
             onChange={e => setYoutubeUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleGenerate()}
             placeholder="https://www.youtube.com/watch?v=..."
             className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors"
           />
+          <p className="text-xs text-[#4b5563]">Thumbnail will be used in image-layout carousel slides.</p>
         </div>
       )}
 
@@ -112,9 +132,11 @@ export default function InputPanel({ onInputReady, isGenerating }) {
             type="url"
             value={articleUrl}
             onChange={e => setArticleUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleGenerate()}
             placeholder="https://medium.com/..."
             className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors"
           />
+          <p className="text-xs text-[#4b5563]">Images in the article will be extracted for carousel slides.</p>
         </div>
       )}
 
@@ -129,45 +151,58 @@ export default function InputPanel({ onInputReady, isGenerating }) {
             rows={8}
             className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors resize-none"
           />
-          <p className="text-xs text-[#4b5563]">{rawText.length} chars</p>
+          <p className="text-xs text-[#4b5563]">{rawText.length} chars · Carousel will use smart typography (no images)</p>
         </div>
       )}
 
       {/* File Upload */}
       {activeTab === 'file' && (
-        <div
-          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all ${
-            isDragging
-              ? 'border-[#c084fc] bg-[#c084fc11]'
-              : fileContent
-              ? 'border-[#c084fc66] bg-[#c084fc08]'
-              : 'border-[#1e1e2e] hover:border-[#c084fc44] bg-[#12121c]'
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,.md,.pdf,.html,.htm"
-            className="hidden"
-            onChange={e => handleFile(e.target.files[0])}
-          />
-          {fileContent ? (
-            <div>
-              <div className="text-3xl mb-2">✅</div>
-              <p className="text-[#c084fc] font-medium text-sm">{fileName}</p>
-              <p className="text-[#6b7280] text-xs mt-1">{fileContent.length.toLocaleString()} chars loaded</p>
-            </div>
-          ) : (
-            <div>
-              <div className="text-4xl mb-3">📁</div>
-              <p className="text-[#9ca3af] text-sm font-medium">Drop file here or click to browse</p>
-              <p className="text-[#4b5563] text-xs mt-1">.txt, .md, .html, .pdf supported</p>
-            </div>
-          )}
+        <div className="space-y-3">
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => !isLoading && fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+              isDragging
+                ? 'border-[#c084fc] bg-[#c084fc11]'
+                : fileData
+                ? 'border-[#c084fc66] bg-[#c084fc08]'
+                : 'border-[#1e1e2e] hover:border-[#c084fc44] bg-[#12121c]'
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.pdf,.html,.htm"
+              className="hidden"
+              onChange={e => processFile(e.target.files[0])}
+            />
+            {isLoading ? (
+              <div>
+                <div className="inline-block w-8 h-8 border-2 border-[#c084fc]/30 border-t-[#c084fc] rounded-full animate-spin mb-2" />
+                <p className="text-sm text-[#9ca3af]">Processing file...</p>
+              </div>
+            ) : fileData ? (
+              <div>
+                <div className="text-3xl mb-2">✅</div>
+                <p className="text-[#c084fc] font-medium text-sm">{fileData.name}</p>
+                <p className="text-[#6b7280] text-xs mt-1">
+                  {fileData.text?.length?.toLocaleString()} chars
+                  {imageCount > 0 && ` · ${imageCount} image${imageCount > 1 ? 's' : ''} extracted`}
+                </p>
+                {imageCount > 0 && (
+                  <p className="text-[#4b5563] text-xs mt-1">Images will be used in carousel slides</p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div className="text-4xl mb-3">📁</div>
+                <p className="text-[#9ca3af] text-sm font-medium">Drop file here or click to browse</p>
+                <p className="text-[#4b5563] text-xs mt-1">.txt, .md, .html — images extracted · .pdf — pages rendered as images</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
