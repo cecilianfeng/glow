@@ -9,13 +9,15 @@ const DEFAULT_BRAND = {
   fontStyle: 'modern',
   logo: null,
   logoName: '',
+  name: '',
+  handle: '',
 };
 
 export function useGlowStore() {
   const [brand, setBrand] = useState(DEFAULT_BRAND);
+  const [identityMode, setIdentityMode] = useState('author'); // 'author' | 'recommender'
   const [inputData, setInputData] = useState(null);
   const [output, setOutput] = useState(null);
-  // Mutable slide overrides — allows user to reassign images per slide without regenerating
   const [slideOverrides, setSlideOverrides] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState(null);
@@ -25,26 +27,22 @@ export function useGlowStore() {
     setBrand(prev => ({ ...prev, ...updates }));
   }, []);
 
-  // Reassign which image appears on a given carousel slide
   const reassignSlideImage = useCallback((slideIndex, imageIndex) => {
     setSlideOverrides(prev => ({
       ...prev,
       [slideIndex]: {
         ...prev[slideIndex],
-        layout: imageIndex != null ? 'image' : 'headline',
-        imageIndex: imageIndex,
+        layout: imageIndex != null ? 'image' : 'insight',
+        imageIndex,
       },
     }));
   }, []);
 
-  // Remove an extracted image (and clear any slide assignments pointing to it)
   const removeExtractedImage = useCallback((imgIndex) => {
     setInputData(prev => {
       if (!prev?.images) return prev;
-      const newImages = prev.images.filter((_, i) => i !== imgIndex);
-      return { ...prev, images: newImages };
+      return { ...prev, images: prev.images.filter((_, i) => i !== imgIndex) };
     });
-    // Clear overrides that referenced this image index
     setSlideOverrides(prev => {
       const updated = { ...prev };
       Object.keys(updated).forEach(k => {
@@ -65,7 +63,6 @@ export function useGlowStore() {
     });
   }, []);
 
-  // Merge AI-assigned slide data with user overrides
   const getMergedSlides = useCallback(() => {
     if (!output?.carousel) return [];
     return output.carousel.map((slide, i) => ({
@@ -84,6 +81,8 @@ export function useGlowStore() {
   return {
     brand,
     updateBrand,
+    identityMode,
+    setIdentityMode,
     inputData,
     setInputData,
     output,

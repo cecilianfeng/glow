@@ -1,20 +1,20 @@
 import { useState, useRef, useCallback } from 'react';
 import { fetchYouTubeData, fetchUrlContent, extractImagesFromHtmlFile } from '../lib/api';
 
-const TABS = [
+const INPUT_TABS = [
+  { id: 'url', label: 'URL', icon: '🔗' },
   { id: 'youtube', label: 'YouTube', icon: '▶' },
-  { id: 'url', label: 'Article / URL', icon: '🔗' },
-  { id: 'text', label: 'Paste Text', icon: '✏️' },
-  { id: 'file', label: 'File Upload', icon: '📄' },
+  { id: 'text', label: 'Text', icon: '✏️' },
+  { id: 'file', label: 'File', icon: '📄' },
 ];
 
-export default function InputPanel({ onInputReady, isGenerating }) {
-  const [activeTab, setActiveTab] = useState('youtube');
+export default function InputPanel({ onInputReady, isGenerating, identityMode, setIdentityMode }) {
+  const [activeTab, setActiveTab] = useState('url');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [articleUrl, setArticleUrl] = useState('');
   const [rawText, setRawText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [fileData, setFileData] = useState(null); // { name, type, text, images }
+  const [fileData, setFileData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const fileInputRef = useRef(null);
@@ -28,7 +28,6 @@ export default function InputPanel({ onInputReady, isGenerating }) {
     setFetchError('');
     try {
       if (isPdf) {
-        // Lazy import — pdfjs-dist is heavy and must NOT be loaded at module init time
         const { extractFromPdf } = await import('../lib/pdfExtract');
         const data = await extractFromPdf(file);
         setFileData({ ...data, name: file.name });
@@ -37,7 +36,6 @@ export default function InputPanel({ onInputReady, isGenerating }) {
         const data = extractImagesFromHtmlFile(text, file.name);
         setFileData({ ...data, name: file.name });
       } else {
-        // Plain text / markdown
         const text = await file.text();
         setFileData({ name: file.name, type: 'file', text, images: [], title: file.name });
       }
@@ -76,7 +74,7 @@ export default function InputPanel({ onInputReady, isGenerating }) {
         inputData = fileData;
       }
 
-      onInputReady(inputData);
+      onInputReady({ ...inputData, identityMode });
     } catch (err) {
       setFetchError(err.message);
     } finally {
@@ -84,20 +82,53 @@ export default function InputPanel({ onInputReady, isGenerating }) {
     }
   };
 
-  const imageCount = fileData?.images?.length ?? 0;
-
   return (
-    <div className="rounded-2xl border border-[#1e1e2e] bg-[#0e0e18] p-6 shadow-xl">
-      <h2 className="text-xl font-semibold text-white mb-1">Content Input</h2>
-      <p className="text-sm text-[#6b7280] mb-5">Drop in your content and let Glow do the magic ✨</p>
+    <div className="rounded-2xl border border-[#1e1e2e] bg-[#0e0e18] p-5 shadow-xl">
+      <h2 className="text-base font-semibold text-white mb-4">Content Input</h2>
 
-      {/* Tab Switcher */}
-      <div className="flex gap-1 mb-6 bg-[#12121c] rounded-xl p-1">
-        {TABS.map(tab => (
+      {/* Identity Mode Toggle */}
+      <div className="mb-5">
+        <label className="block text-xs font-medium text-[#6b7280] uppercase tracking-wider mb-2.5">
+          Your Role
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setIdentityMode('author')}
+            className={`py-3 px-3 rounded-xl text-sm font-medium transition-all cursor-pointer border text-center ${
+              identityMode === 'author'
+                ? 'bg-[#c084fc22] text-[#c084fc] border-[#c084fc44]'
+                : 'bg-[#12121c] text-[#6b7280] border-[#1e1e2e] hover:text-[#9ca3af] hover:border-[#c084fc22]'
+            }`}
+          >
+            <div className="text-base mb-0.5">✍️</div>
+            <div className="text-xs">I wrote this</div>
+          </button>
+          <button
+            onClick={() => setIdentityMode('recommender')}
+            className={`py-3 px-3 rounded-xl text-sm font-medium transition-all cursor-pointer border text-center ${
+              identityMode === 'recommender'
+                ? 'bg-[#c084fc22] text-[#c084fc] border-[#c084fc44]'
+                : 'bg-[#12121c] text-[#6b7280] border-[#1e1e2e] hover:text-[#9ca3af] hover:border-[#c084fc22]'
+            }`}
+          >
+            <div className="text-base mb-0.5">🔖</div>
+            <div className="text-xs">Sharing this</div>
+          </button>
+        </div>
+        <p className="text-xs text-[#4b5563] mt-2">
+          {identityMode === 'author'
+            ? 'Copy uses first-person voice — "I wrote this..."'
+            : 'Copy uses recommendation voice — "This is worth reading..."'}
+        </p>
+      </div>
+
+      {/* Input Type Tabs */}
+      <div className="flex gap-1 mb-4 bg-[#12121c] rounded-xl p-1">
+        {INPUT_TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); setFetchError(''); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 text-sm py-2 px-3 rounded-lg transition-all font-medium cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1 text-xs py-2 px-2 rounded-lg transition-all font-medium cursor-pointer ${
               activeTab === tab.id
                 ? 'bg-[#c084fc22] text-[#c084fc] border border-[#c084fc44]'
                 : 'text-[#6b7280] hover:text-[#9ca3af]'
@@ -109,10 +140,24 @@ export default function InputPanel({ onInputReady, isGenerating }) {
         ))}
       </div>
 
+      {/* URL */}
+      {activeTab === 'url' && (
+        <div className="space-y-2">
+          <input
+            type="url"
+            value={articleUrl}
+            onChange={e => setArticleUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleGenerate()}
+            placeholder="https://medium.com/... or any article URL"
+            className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors"
+          />
+          <p className="text-xs text-[#4b5563]">Images from the article are extracted for carousel slides</p>
+        </div>
+      )}
+
       {/* YouTube */}
       {activeTab === 'youtube' && (
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-[#9ca3af]">YouTube URL</label>
+        <div className="space-y-2">
           <input
             type="url"
             value={youtubeUrl}
@@ -121,89 +166,66 @@ export default function InputPanel({ onInputReady, isGenerating }) {
             placeholder="https://www.youtube.com/watch?v=..."
             className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors"
           />
-          <p className="text-xs text-[#4b5563]">Thumbnail will be used in image-layout carousel slides.</p>
+          <p className="text-xs text-[#4b5563]">Thumbnail used in carousel image slides</p>
         </div>
       )}
 
-      {/* Article URL */}
-      {activeTab === 'url' && (
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-[#9ca3af]">Article or Website URL</label>
-          <input
-            type="url"
-            value={articleUrl}
-            onChange={e => setArticleUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleGenerate()}
-            placeholder="https://medium.com/..."
-            className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors"
-          />
-          <p className="text-xs text-[#4b5563]">Images in the article will be extracted for carousel slides.</p>
-        </div>
-      )}
-
-      {/* Raw Text */}
+      {/* Text */}
       {activeTab === 'text' && (
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-[#9ca3af]">Paste your content</label>
+        <div className="space-y-2">
           <textarea
             value={rawText}
             onChange={e => setRawText(e.target.value)}
             placeholder="Paste your article, newsletter, blog post, talk notes..."
-            rows={8}
+            rows={7}
             className="w-full bg-[#12121c] border border-[#1e1e2e] rounded-xl px-4 py-3 text-white placeholder-[#3a3a4a] focus:outline-none focus:border-[#c084fc66] text-sm transition-colors resize-none"
           />
-          <p className="text-xs text-[#4b5563]">{rawText.length} chars · Carousel will use smart typography (no images)</p>
+          <p className="text-xs text-[#4b5563]">{rawText.length.toLocaleString()} chars</p>
         </div>
       )}
 
-      {/* File Upload */}
+      {/* File */}
       {activeTab === 'file' && (
-        <div className="space-y-3">
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => !isLoading && fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-              isDragging
-                ? 'border-[#c084fc] bg-[#c084fc11]'
-                : fileData
-                ? 'border-[#c084fc66] bg-[#c084fc08]'
-                : 'border-[#1e1e2e] hover:border-[#c084fc44] bg-[#12121c]'
-            }`}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.pdf,.html,.htm"
-              className="hidden"
-              onChange={e => processFile(e.target.files[0])}
-            />
-            {isLoading ? (
-              <div>
-                <div className="inline-block w-8 h-8 border-2 border-[#c084fc]/30 border-t-[#c084fc] rounded-full animate-spin mb-2" />
-                <p className="text-sm text-[#9ca3af]">Processing file...</p>
-              </div>
-            ) : fileData ? (
-              <div>
-                <div className="text-3xl mb-2">✅</div>
-                <p className="text-[#c084fc] font-medium text-sm">{fileData.name}</p>
-                <p className="text-[#6b7280] text-xs mt-1">
-                  {fileData.text?.length?.toLocaleString()} chars
-                  {imageCount > 0 && ` · ${imageCount} image${imageCount > 1 ? 's' : ''} extracted`}
-                </p>
-                {imageCount > 0 && (
-                  <p className="text-[#4b5563] text-xs mt-1">Images will be used in carousel slides</p>
-                )}
-              </div>
-            ) : (
-              <div>
-                <div className="text-4xl mb-3">📁</div>
-                <p className="text-[#9ca3af] text-sm font-medium">Drop file here or click to browse</p>
-                <p className="text-[#4b5563] text-xs mt-1">.txt, .md, .html — images extracted · .pdf — pages rendered as images</p>
-              </div>
-            )}
-          </div>
+        <div
+          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => !isLoading && fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+            isDragging
+              ? 'border-[#c084fc] bg-[#c084fc11]'
+              : fileData
+              ? 'border-[#c084fc66] bg-[#c084fc08]'
+              : 'border-[#1e1e2e] hover:border-[#c084fc44] bg-[#12121c]'
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.md,.pdf,.html,.htm"
+            className="hidden"
+            onChange={e => processFile(e.target.files[0])}
+          />
+          {isLoading ? (
+            <div>
+              <div className="inline-block w-6 h-6 border-2 border-[#c084fc]/30 border-t-[#c084fc] rounded-full animate-spin mb-2" />
+              <p className="text-sm text-[#9ca3af]">Processing...</p>
+            </div>
+          ) : fileData ? (
+            <div>
+              <p className="text-[#c084fc] font-medium text-sm">{fileData.name}</p>
+              <p className="text-[#6b7280] text-xs mt-1">
+                {fileData.text?.length?.toLocaleString()} chars
+                {fileData.images?.length > 0 && ` · ${fileData.images.length} images`}
+              </p>
+              <p className="text-[#4b5563] text-xs mt-0.5">Click to change file</p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-[#9ca3af] text-sm font-medium mb-1">Drop file or click to browse</p>
+              <p className="text-[#4b5563] text-xs">.txt · .md · .pdf · .html</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -216,7 +238,7 @@ export default function InputPanel({ onInputReady, isGenerating }) {
       <button
         onClick={handleGenerate}
         disabled={isLoading || isGenerating}
-        className="mt-5 w-full py-3.5 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
+        className="mt-4 w-full py-3.5 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed
           bg-gradient-to-r from-[#a855f7] to-[#c084fc] text-white shadow-lg shadow-purple-900/30
           hover:shadow-purple-900/50 hover:from-[#9333ea] hover:to-[#a855f7] active:scale-[0.98]"
       >
@@ -228,10 +250,10 @@ export default function InputPanel({ onInputReady, isGenerating }) {
         ) : isGenerating ? (
           <span className="flex items-center justify-center gap-2">
             <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Generating with AI...
+            Generating...
           </span>
         ) : (
-          '✨ Generate with Glow'
+          '✦ Generate with Glow'
         )}
       </button>
     </div>

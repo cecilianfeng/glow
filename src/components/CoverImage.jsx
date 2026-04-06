@@ -7,185 +7,137 @@ const FONT_MAP = {
   minimal: "'DM Sans', 'Helvetica Neue', sans-serif",
 };
 
-function CoverCanvas({ title, subtitle, brand, thumbnail }) {
+// Canvas renders at 600x314 (half of 1200x628) — html2canvas exports at 2x = 1200x628
+function CoverCanvas({ coverData, brand, thumbnail }) {
   const fontFamily = FONT_MAP[brand.fontStyle] || FONT_MAP.modern;
+  const { headline, subline, tag } = coverData || {};
 
   return (
-    <div
-      style={{
-        width: '600px',
-        height: '314px',
-        background: brand.background,
-        fontFamily,
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Background layers */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: `linear-gradient(135deg, ${brand.primary}18 0%, transparent 50%, ${brand.secondary}12 100%)`,
-        }}
-      />
-      {/* Grid dots */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `radial-gradient(${brand.primary}20 1px, transparent 1px)`,
-          backgroundSize: '24px 24px',
-        }}
-      />
-      {/* Glow orbs */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-80px',
-          left: '-80px',
-          width: '300px',
-          height: '300px',
-          background: brand.primary,
-          borderRadius: '50%',
-          opacity: 0.1,
-          filter: 'blur(80px)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-60px',
-          right: '-60px',
-          width: '250px',
-          height: '250px',
-          background: brand.accent,
-          borderRadius: '50%',
-          opacity: 0.08,
-          filter: 'blur(70px)',
-        }}
-      />
+    <div style={{
+      width: '600px', height: '314px',
+      background: brand.background, fontFamily,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Base gradient */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `linear-gradient(135deg, ${brand.primary}18 0%, transparent 55%, ${brand.secondary}12 100%)`,
+      }} />
 
-      {/* Thumbnail if available */}
+      {/* Dot grid */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `radial-gradient(${brand.primary}18 1px, transparent 1px)`,
+        backgroundSize: '24px 24px',
+      }} />
+
+      {/* Glow orbs */}
+      <div style={{
+        position: 'absolute', top: '-80px', left: '-60px',
+        width: '280px', height: '280px',
+        background: brand.primary, borderRadius: '50%',
+        opacity: 0.08, filter: 'blur(80px)',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-60px', right: '-60px',
+        width: '240px', height: '240px',
+        background: brand.accent, borderRadius: '50%',
+        opacity: 0.06, filter: 'blur(70px)',
+      }} />
+
+      {/* Right-side thumbnail (faded) */}
       {thumbnail && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: '220px',
-            overflow: 'hidden',
-          }}
-        >
-          <img
-            src={thumbnail}
-            alt=""
-            crossOrigin="anonymous"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.25 }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: `linear-gradient(to right, ${brand.background}, transparent)`,
-            }}
-          />
+        <div style={{
+          position: 'absolute', right: 0, top: 0, bottom: 0, width: '220px',
+          overflow: 'hidden',
+        }}>
+          <img src={thumbnail} alt="" crossOrigin="anonymous" style={{
+            width: '100%', height: '100%', objectFit: 'cover', opacity: 0.2,
+          }} />
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(to right, ${brand.background} 0%, ${brand.background}cc 30%, transparent 100%)`,
+          }} />
         </div>
       )}
 
       {/* Content */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          height: '100%',
-          padding: '36px 40px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          maxWidth: thumbnail ? '75%' : '100%',
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* Brand tag */}
+      <div style={{
+        position: 'relative', zIndex: 1,
+        height: '100%',
+        padding: '28px 36px',
+        display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between',
+        maxWidth: thumbnail ? '76%' : '100%',
+        boxSizing: 'border-box',
+      }}>
+        {/* Top: brand + tag */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {brand.logo ? (
-            <img src={brand.logo} alt="logo" style={{ height: '22px', objectFit: 'contain' }} />
+            <img src={brand.logo} alt="logo" style={{ height: '20px', objectFit: 'contain' }} />
           ) : (
-            <div
-              style={{
-                background: `linear-gradient(90deg, ${brand.primary}, ${brand.accent})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '14px',
-                fontWeight: 800,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Glow
+            <div style={{
+              background: `linear-gradient(90deg, ${brand.primary}, ${brand.accent})`,
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              fontSize: '13px', fontWeight: 800, letterSpacing: '0.1em',
+            }}>
+              {brand.name ? brand.name.toUpperCase() : 'GLOW'}
             </div>
           )}
-          <div style={{ width: '1px', height: '16px', background: brand.primary + '44' }} />
-          <span style={{ fontSize: '11px', color: brand.primary + 'aa', fontWeight: 500 }}>
-            Key Insights
-          </span>
+          {tag && (
+            <>
+              <div style={{ width: '1px', height: '14px', background: brand.primary + '33' }} />
+              <span style={{ fontSize: '11px', color: brand.primary + 'bb', fontWeight: 500 }}>
+                {tag}
+              </span>
+            </>
+          )}
         </div>
 
-        {/* Title */}
+        {/* Middle: title */}
         <div>
-          <div
-            style={{
-              width: '50px',
-              height: '3px',
-              background: `linear-gradient(90deg, ${brand.primary}, ${brand.accent})`,
-              borderRadius: '2px',
-              marginBottom: '16px',
-            }}
-          />
-          <h1
-            style={{
-              fontSize: title.length > 60 ? '22px' : title.length > 40 ? '26px' : '30px',
-              fontWeight: 700,
-              color: brand.text,
-              lineHeight: 1.25,
-              margin: '0 0 10px',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {title}
+          <div style={{
+            width: '44px', height: '3px',
+            background: `linear-gradient(90deg, ${brand.primary}, ${brand.accent})`,
+            borderRadius: '2px', marginBottom: '14px',
+          }} />
+          <h1 style={{
+            fontSize: headline?.length > 55 ? '22px' : headline?.length > 40 ? '26px' : '30px',
+            fontWeight: 700, color: brand.text,
+            lineHeight: 1.2, margin: '0 0 10px',
+            letterSpacing: '-0.025em',
+          }}>
+            {headline || 'Key Insights'}
           </h1>
-          {subtitle && (
-            <p
-              style={{
-                fontSize: '13px',
-                color: brand.text + '88',
-                margin: 0,
-                lineHeight: 1.5,
-              }}
-            >
-              {subtitle.slice(0, 100)}{subtitle.length > 100 ? '...' : ''}
+          {subline && (
+            <p style={{
+              fontSize: '12px', color: brand.text + '77',
+              margin: 0, lineHeight: 1.5,
+            }}>
+              {subline.slice(0, 85)}{subline.length > 85 ? '...' : ''}
             </p>
           )}
         </div>
 
-        {/* Bottom tag */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: brand.primary + '18',
-            border: `1px solid ${brand.primary}33`,
-            borderRadius: '20px',
-            padding: '4px 12px',
-            width: 'fit-content',
-          }}
-        >
-          <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: brand.primary }} />
-          <span style={{ fontSize: '11px', color: brand.primary, fontWeight: 500 }}>
-            LinkedIn Carousel
+        {/* Bottom: creator handle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '22px', height: '22px', borderRadius: '50%',
+            background: `linear-gradient(135deg, ${brand.primary}44, ${brand.accent}44)`,
+            border: `1px solid ${brand.primary}44`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0,
+          }}>
+            {brand.logo ? (
+              <img src={brand.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ fontSize: '9px', fontWeight: 700, color: brand.primary }}>
+                {(brand.name || 'G').charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: '11px', color: brand.primary + 'bb', fontWeight: 500 }}>
+            {brand.handle || brand.name || 'LinkedIn'}
           </span>
         </div>
       </div>
@@ -193,26 +145,33 @@ function CoverCanvas({ title, subtitle, brand, thumbnail }) {
   );
 }
 
-export default function CoverImage({ title, subtitle, brand, thumbnail }) {
+export default function CoverImage({ coverData, brand, thumbnail }) {
   const canvasRef = useRef(null);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-semibold text-white">Cover Image</h3>
-        <span className="text-xs text-[#6b7280]">1200×628 px</span>
+        <div>
+          <h3 className="text-base font-semibold text-white">Cover Image</h3>
+          <p className="text-xs text-[#6b7280] mt-0.5">1200 × 628 px · LinkedIn recommended</p>
+        </div>
+        <button
+          onClick={() => exportElementAsPng(canvasRef.current, 'glow-cover.png')}
+          className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-[#a855f7] to-[#c084fc] rounded-xl hover:from-[#9333ea] hover:to-[#a855f7] transition-all cursor-pointer shadow-md shadow-purple-900/30"
+        >
+          ↓ Download PNG
+        </button>
       </div>
-      <div className="rounded-2xl overflow-hidden border border-[#1e1e2e]">
-        <div ref={canvasRef} className="overflow-hidden">
-          <CoverCanvas title={title} subtitle={subtitle} brand={brand} thumbnail={thumbnail} />
+
+      <div className="rounded-2xl overflow-hidden border border-[#1e1e2e] shadow-lg shadow-black/40">
+        <div ref={canvasRef}>
+          <CoverCanvas coverData={coverData} brand={brand} thumbnail={thumbnail} />
         </div>
       </div>
-      <button
-        onClick={() => exportElementAsPng(canvasRef.current, 'cover-image.png')}
-        className="mt-2 w-full py-2 text-xs font-medium text-[#c084fc] bg-[#c084fc11] hover:bg-[#c084fc22] border border-[#c084fc22] hover:border-[#c084fc44] rounded-xl transition-all cursor-pointer"
-      >
-        ↓ Download Cover PNG
-      </button>
+
+      <p className="mt-2 text-xs text-[#3a3a4a] text-center">
+        Exports at 1200 × 628 px (2× retina) · use as LinkedIn post thumbnail
+      </p>
     </div>
   );
 }
